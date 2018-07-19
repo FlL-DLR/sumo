@@ -917,6 +917,13 @@ class VehicleDomain(Domain):
         self._connection._packStringList(edgeList)
         self._connection._sendExact()
 
+    def updateBestLanes(self, vehID):
+        """ updateBestLanes(string) -> None
+        Triggers an update of the vehicle's bestLanes (structure determining the lane preferences used by LC models)
+        It may be called after modifying the vClass for instance.
+        """
+        self._connection._beginMessage(tc.CMD_SET_VEHICLE_VARIABLE, tc.VAR_UPDATE_BESTLANES, vehID)
+
     def setAdaptedTraveltime(self, vehID, edgeID, time=None, begTime=None, endTime=None):
         """setAdaptedTraveltime(string, string, double, int, int) -> None
         Inserts the information about the travel time of edge "edgeID" valid
@@ -1376,15 +1383,15 @@ class VehicleDomain(Domain):
         Restricts vehicles returned by the last modified vehicle context subscription to leader and follower of the ego
         """
         self._connection._addSubscriptionFilter(tc.FILTER_TYPE_CF_MANEUVER)
+                
+    def addSubscriptionFilterLCManeuver(self):
+        """addSubscriptionFilterLCManeuver() -> None
 
-    def addSubscriptionFilterLCManeuver(self, direction):
-        """addSubscriptionFilterLCManeuver(int) -> None
-
-        Restricts vehicles returned by the last modified vehicle context subscription to neighbor and ego-lane leader
-        and follower of the ego
+        Restricts vehicles returned by the last modified vehicle context subscription to neighbor and ego-lane leader and follower of the ego.
+        Combine with: lanes-filter to restrict to one direction; distance filters; vClass/vType filter.
         """
-        self._connection._addSubscriptionFilter(tc.FILTER_TYPE_LC_MANEUVER, direction)
-
+        self._connection._addSubscriptionFilter(tc.FILTER_TYPE_LC_MANEUVER)
+        
     def addSubscriptionFilterTurnManeuver(self):
         """addSubscriptionFilterTurnManeuver() -> None
 
