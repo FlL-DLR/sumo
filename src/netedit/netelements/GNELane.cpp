@@ -295,17 +295,18 @@ GNELane::drawGL(const GUIVisualizationSettings& s) const {
         const double halfWidth2 = exaggeration * (myParentEdge.getNBEdge()->getLaneWidth(myIndex) / 2 - SUMO_const_laneMarkWidth / 2);
         // Draw as a normal lane, and reduce width to make sure that a selected edge can still be seen
         const double halfWidth =  myParentEdge.isAttributeCarrierSelected() ? halfWidth2 - exaggeration * 0.3 : halfWidth2;
+        const bool spreadSuperposed = s.spreadSuperposed && drawAsRailway(s) && myParentEdge.getNBEdge()->isBidiRail();
         // Check if lane has to be draw as railway and if isn't being drawn for selecting
-        if (drawAsRailway(s) && !s.drawForSelecting) {
+        if (drawAsRailway(s) && (!s.drawForSelecting || spreadSuperposed)) {
             PositionVector shape = getShape();
             const double width = myParentEdge.getNBEdge()->getLaneWidth(myIndex);
             // draw as railway: assume standard gauge of 1435mm when lane width is not set
             // draw foot width 150mm, assume that distance between rail feet inner sides is reduced on both sides by 39mm with regard to the gauge
             // assume crosstie length of 181% gauge (2600mm for standard gauge)
             double halfGauge = 0.5 * (width == SUMO_const_laneWidth ?  1.4350 : width) * exaggeration;
-            if (s.spreadSuperposed && myParentEdge.getNBEdge()->isBidiRail()) {
-                shape.move2side(halfGauge * 0.6);
-                halfGauge *= 0.5;
+            if (spreadSuperposed) {
+                shape.move2side(halfGauge * 0.8);
+                halfGauge *= 0.4;
                 //std::cout << "spreadSuperposed " << getID() << " old=" << getShape() << " new=" << shape << "\n";
             }
             const double halfInnerFeetWidth = halfGauge - 0.039 * exaggeration;
@@ -334,7 +335,7 @@ GNELane::drawGL(const GUIVisualizationSettings& s) const {
                 GLHelper::drawBoxLines(getShape(), myShapeRotations, myShapeLengths, halfWidth);
             }
         }
-        if (halfWidth != halfWidth2) {
+        if (halfWidth != halfWidth2 && !spreadSuperposed) {
             // draw again to show the selected edge
             GLHelper::setColor(GNENet::selectionColor);
             glTranslated(0, 0, -.1);
@@ -360,7 +361,7 @@ GNELane::drawGL(const GUIVisualizationSettings& s) const {
                 } else {
                     glColor3d(0.3, 0.3, 0.3);
                 }
-                drawDirectionIndicators();
+                drawDirectionIndicators(exaggeration, spreadSuperposed);
             }
             if (s.drawLinkJunctionIndex.show) {
                 drawLinkNo(s);
@@ -1000,10 +1001,12 @@ GNELane::getColorValue(int activeScheme) const {
                 default:
                     break;
             }
-            if ((myPermissions & SVC_PASSENGER) != 0 || isRailway(myPermissions)) {
+            if (isRailway(myPermissions)) {
+                return 5;
+            } else if ((myPermissions & SVC_PASSENGER) != 0) {
                 return 0;
             } else {
-                return 5;
+                return 6;
             }
         case 1:
             return isAttributeCarrierSelected() ||myParentEdge.isAttributeCarrierSelected();
@@ -1066,7 +1069,7 @@ GNELane::removeLaneOfAdditionalParents(GNEUndoList* undoList, bool allowEmpty) {
 
 bool
 GNELane::drawAsRailway(const GUIVisualizationSettings& s) const {
-    return isRailway(myParentEdge.getNBEdge()->getPermissions(myIndex)) && s.showRails && !s.drawForSelecting;
+    return isRailway(myParentEdge.getNBEdge()->getPermissions(myIndex)) && s.showRails && (!s.drawForSelecting || s.spreadSuperposed);
 }
 
 
@@ -1077,8 +1080,10 @@ GNELane::drawAsWaterway(const GUIVisualizationSettings& s) const {
 
 
 void
-GNELane::drawDirectionIndicators() const {
-    const double width = myParentEdge.getNBEdge()->getLaneWidth(myIndex);
+GNELane::drawDirectionIndicators(double exaggeration, bool spreadSuperposed) const {
+    const double width = (myParentEdge.getNBEdge()->getLaneWidth(myIndex) * exaggeration 
+            * (spreadSuperposed ? 0.4 : 1));
+    const double sideOffset = spreadSuperposed ? width * -0.5: 0;
     glPushMatrix();
     glTranslated(0, 0, GLO_JUNCTION + 0.1);
     int e = (int) getShape().size() - 1;
@@ -1089,9 +1094,9 @@ GNELane::drawDirectionIndicators() const {
         for (double t = 0; t < myShapeLengths[i]; t += width) {
             const double length = MIN2(width * 0.5, myShapeLengths[i] - t);
             glBegin(GL_TRIANGLES);
-            glVertex2d(0, -t - length);
-            glVertex2d(-width * 0.25, -t);
-            glVertex2d(+width * 0.25, -t);
+            glVertex2d(sideOffset, -t - length);
+            glVertex2d(sideOffset - width * 0.25, -t);
+            glVertex2d(sideOffset + width * 0.25, -t);
             glEnd();
         }
         glPopMatrix();

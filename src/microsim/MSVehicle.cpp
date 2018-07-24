@@ -3090,6 +3090,7 @@ MSVehicle::executeMove() {
                           + ", offset=" + toString(myState.myPos - myLane->getLength())
                           + "), time=" + time2string(MSNet::getInstance()->getCurrentTimeStep()) + ".");
             MSNet::getInstance()->getVehicleControl().registerEmergencyStop();
+            MSNet::getInstance()->informVehicleStateListener(this, MSNet::VEHICLE_STATE_EMERGENCYSTOP);
             myState.myPos = myLane->getLength();
             myState.mySpeed = 0;
             myAcceleration = 0;
@@ -4025,8 +4026,8 @@ MSVehicle::updateBestLanes(bool forceRebuild, const MSLane* startLane) {
         ++seen;
         seenLength += currentLanes[0].lane->getLength();
         ++ce;
-        progress &= (seen <= 4 || seenLength < 3000);
-        progress &= seen <= 8;
+        progress &= (seen <= 4 || seenLength < 3000); // motorway 
+        progress &= (seen <= 8 || seenLength < 200);  // urban
         progress &= ce != myRoute->end();
         /*
         if(progress) {

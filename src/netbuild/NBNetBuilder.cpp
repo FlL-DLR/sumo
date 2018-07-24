@@ -146,8 +146,12 @@ NBNetBuilder::compute(OptionsCont& oc, const std::set<std::string>& explicitTurn
     }
     
     // analyse and fix railway topology
-    if (oc.exists("railway.topology.check") && oc.getBool("railway.topology.check")) {
-        NBRailwayTopologyAnalyzer::analyzeTopology(*this, oc);
+    if (oc.exists("railway.topology.repair") && oc.getBool("railway.topology.repair")) {
+        NBRailwayTopologyAnalyzer::repairTopology(*this);
+    }
+    if (oc.exists("railway.topology.output") && oc.isSet("railway.topology.output")) {
+        NBRailwayTopologyAnalyzer::analyzeTopology(*this, 
+                oc.getString("railway.topology.output"));
     }
 
     if (oc.getBool("junctions.join") || (oc.exists("ramps.guess") && oc.getBool("ramps.guess"))) {
@@ -522,9 +526,10 @@ NBNetBuilder::compute(OptionsCont& oc, const std::set<std::string>& explicitTurn
         PROGRESS_TIME_MESSAGE(before);
     }
 
-    //find accesses for pt rail stops
+    //find accesses for pt rail stops and add bidi-stops
     if (oc.exists("ptstop-output") && oc.isSet("ptstop-output")) {
         before = SysUtils::getCurrentMillis();
+        myPTStopCont.generateBidiStops(myEdgeCont);
         PROGRESS_BEGIN_MESSAGE("Find accesses for pt rail stops");
         double maxRadius = oc.getFloat("osm.stop-output.footway-access-distance");
         double accessFactor = oc.getFloat("osm.stop-output.footway-access-factor");
