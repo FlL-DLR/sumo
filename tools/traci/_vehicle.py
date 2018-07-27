@@ -66,6 +66,25 @@ def _readNextTLS(result):
         nextTLS.append((tlsID, tlsIndex, dist, chr(state)))
     return nextTLS
 
+def _readNextStops(result):
+    result.read("!iB")  # numCompounds, TYPE_INT
+    numStops = result.read("!i")[0]
+    nextStop = []
+    for i in range(numStops):
+        result.read("!B")
+        lane = result.readString()
+        result.read("!B")
+        endPos = result.readDouble()
+        result.read("!B")
+        stoppingPlaceID = result.readString()
+        result.read("!B")
+        stopFlags = result.readInt()
+        result.read("!B")
+        duration = result.readInt()
+        result.read("!B")
+        until = result.readInt()
+        nextStop.append((lane, endPos, stoppingPlaceID, stopFlags, duration, until))
+    return nextStop
 
 _RETURN_VALUE_FUNC = {tc.VAR_SPEED: Storage.readDouble,
                       tc.VAR_SPEED_WITHOUT_TRACI: Storage.readDouble,
@@ -90,6 +109,7 @@ _RETURN_VALUE_FUNC = {tc.VAR_SPEED: Storage.readDouble,
                       tc.VAR_NOISEEMISSION: Storage.readDouble,
                       tc.VAR_ELECTRICITYCONSUMPTION: Storage.readDouble,
                       tc.VAR_PERSON_NUMBER: Storage.readInt,
+                      tc.VAR_PERSON_IDS: Storage.readStringList,
                       tc.VAR_EDGE_TRAVELTIME: Storage.readDouble,
                       tc.VAR_EDGE_EFFORT: Storage.readDouble,
                       tc.VAR_ROUTE_VALID: lambda result: bool(result.read("!B")[0]),
@@ -124,11 +144,13 @@ _RETURN_VALUE_FUNC = {tc.VAR_SPEED: Storage.readDouble,
                       tc.VAR_BEST_LANES: _readBestLanes,
                       tc.VAR_LEADER: _readLeader,
                       tc.VAR_NEXT_TLS: _readNextTLS,
+                      tc.VAR_NEXT_STOPS: _readNextStops,
                       tc.VAR_LANEPOSITION_LAT: Storage.readDouble,
                       tc.VAR_MAXSPEED_LAT: Storage.readDouble,
                       tc.VAR_MINGAP_LAT: Storage.readDouble,
                       tc.VAR_LATALIGNMENT: Storage.readString,
                       tc.DISTANCE_REQUEST: Storage.readDouble,
+                      tc.VAR_ROUTING_MODE: Storage.readInt,
                       tc.VAR_STOPSTATE: lambda result: result.read("!B")[0],
                       tc.VAR_DISTANCE: Storage.readDouble}
 
@@ -329,6 +351,13 @@ class VehicleDomain(Domain):
         this vehicle.
         """
         return self._getUniversal(tc.VAR_PERSON_NUMBER, vehID)
+
+    def getPersonIDList(self, vehID):
+        """getPersonIDList(string) -> integer
+        Returns the list of persons which includes those defined using attribute 'personNumber'
+        as well as <person>-objects which are riding in this vehicle.
+        """
+        return self._getUniversal(tc.VAR_PERSON_IDS, vehID)
 
     def getAdaptedTraveltime(self, vehID, time, edgeID):
         """getAdaptedTraveltime(string, double, string) -> double
@@ -606,6 +635,23 @@ class VehicleDomain(Domain):
         """
         return self._getUniversal(tc.VAR_NEXT_TLS, vehID)
 
+    def getNextStops(self, vehID):
+        """getNextStop(string) -> [(string, double, string, int, int, int)], ...
+
+        Return list of upcoming stops [(lane, endPos, stoppingPlaceID, stopFlags, duration, until), ...]
+        where integer stopFlag is defined as:
+               1 * stopped +
+               2 * parking +
+               4 * personTriggered +
+               8 * containerTriggered +
+              16 * isBusStop +
+              32 * isContainerStop +
+              64 * chargingStation +
+             128 * parkingarea
+        with each of these flags defined as 0 or 1.
+        """
+        return self._getUniversal(tc.VAR_NEXT_STOPS, vehID)
+
     def subscribeLeader(self, vehID, dist=0., begin=0, end=2**31 - 1):
         """subscribeLeader(string, double) -> None
 
@@ -745,6 +791,13 @@ class VehicleDomain(Domain):
                 return state & tc.LCA_LEFT != 0
         return False
 
+    def getRoutingMode(self, vehID):
+        """returns the current routing mode:
+        tc.ROUTING_MODE_DEFAULT    : use weight storages and fall-back to edge speeds (default)
+        tc.ROUTING_MODE_AGGREGATED : use global smoothed travel times from device.rerouting
+        """
+        return self._getUniversal(tc.VAR_ROUTING_MODE, vehID)
+
     def setMaxSpeed(self, vehID, speed):
         """setMaxSpeed(string, double) -> None
 
@@ -760,6 +813,19 @@ class VehicleDomain(Domain):
         """
         self._connection._sendDoubleCmd(
             tc.CMD_SET_VEHICLE_VARIABLE, tc.VAR_MAXSPEED_LAT, vehID, speed)
+
+    def rerouteParkingArea(self, vehID, parkingAreaID):
+        """rerouteParkingArea(string, string)
+
+        Changes the next parking area in parkingAreaID, updates the vehicle route,
+        and preserve consistency in case of passengers/containers on board.
+        """
+        self._connection._beginMessage(tc.CMD_SET_VEHICLE_VARIABLE, tc.CMD_REROUTE_TO_PARKING, vehID,
+                                       1 + 4 +  # compound
+                                       1 + 4 + len(parkingAreaID))
+        self._connection._string += struct.pack("!Bi", tc.TYPE_COMPOUND, 1)
+        self._connection._packString(parkingAreaID)
+        self._connection._sendExact()
 
     def setStop(self, vehID, edgeID, pos=1., laneIndex=0, duration=2**31 - 1,
                 flags=tc.STOP_DEFAULT, startPos=tc.INVALID_DOUBLE_VALUE, until=-1):
@@ -1005,6 +1071,15 @@ class VehicleDomain(Domain):
             self._connection._sendExact()
 
     LAST_TRAVEL_TIME_UPDATE = -1
+
+    def setRoutingMode(self, vehID, routingMode):
+        """sets the current routing mode:
+        tc.ROUTING_MODE_DEFAULT    : use weight storages and fall-back to edge speeds (default)
+        tc.ROUTING_MODE_AGGREGATED : use global smoothed travel times from device.rerouting
+        """
+        self._connection._sendIntCmd(
+            tc.CMD_SET_VEHICLE_VARIABLE, tc.VAR_ROUTING_MODE, vehID, routingMode)
+
 
     def rerouteTraveltime(self, vehID, currentTravelTimes=True):
         """rerouteTraveltime(string, bool) -> None Reroutes a vehicle. If

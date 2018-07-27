@@ -247,6 +247,10 @@ Vehicle::getPersonNumber(const std::string& vehicleID) {
     return getVehicle(vehicleID)->getPersonNumber();
 }
 
+std::vector<std::string>
+Vehicle::getPersonIDList(const std::string& vehicleID) {
+    return getVehicle(vehicleID)->getPersonIDList();
+}
 
 std::pair<std::string, double>
 Vehicle::getLeader(const std::string& vehicleID, double dist) {
@@ -370,6 +374,37 @@ Vehicle::getNextTLS(const std::string& vehicleID) {
             }
             seen += lane->getLength();
             link = MSLane::succLinkSec(*veh, view, *lane, bestLaneConts);
+        }
+    }
+    return result;
+}
+
+std::vector<TraCINextStopData>
+Vehicle::getNextStops(const std::string& vehicleID) {
+    std::vector<TraCINextStopData> result;
+    MSVehicle* veh = getVehicle(vehicleID);
+    std::list<MSVehicle::Stop> stops = veh->getMyStops();
+    for (std::list<MSVehicle::Stop>::iterator it = stops.begin(); it != stops.end(); ++it) {
+        if (!it->reached && !it->collision) {
+            TraCINextStopData nsd;
+            nsd.lane = it->lane->getID();
+            nsd.endPos = it->getEndPos(*veh);
+            // all optionals, only one can be set
+            if (it->busstop != 0) { nsd.stoppingPlaceID = it->busstop->getID(); }
+            if (it->containerstop != 0) { nsd.stoppingPlaceID = it->containerstop->getID(); }
+            if (it->parkingarea != 0) { nsd.stoppingPlaceID = it->parkingarea->getID(); }
+            if (it->chargingStation != 0) { nsd.stoppingPlaceID = it->chargingStation->getID(); }
+            nsd.stopFlags = (1 +
+                (it->pars.parking ? 2 : 0) +
+                (it->pars.triggered ? 4 : 0) +
+                (it->pars.containerTriggered ? 8 : 0) +
+                (it->busstop != 0 ? 16 : 0) +
+                (it->containerstop != 0 ? 32 : 0) +
+                (it->chargingStation != 0 ? 64 : 0) +
+                (it->parkingarea != 0 ? 128 : 0));
+            nsd.duration = it->pars.duration;
+            nsd.until = it->pars.until;
+            result.push_back(nsd);
         }
     }
     return result;
@@ -690,6 +725,15 @@ Vehicle::setStop(const std::string& vehicleID,
     }
 }
 
+void
+Vehicle::rerouteParkingArea(const std::string& vehicleID, const std::string& parkingAreaID) {
+    MSVehicle* veh = getVehicle(vehicleID);
+    std::string error;
+    // Forward command to vehicle
+    if (!veh->rerouteParkingArea(parkingAreaID, error)) {
+        throw TraCIException(error);
+    }
+}
 
 void
 Vehicle::resume(const std::string& vehicleID) {
@@ -721,7 +765,7 @@ Vehicle::changeTarget(const std::string& vehicleID, const std::string& edgeID) {
     // build a new route between the vehicle's current edge and destination edge
     ConstMSEdgeVector newRoute;
     const MSEdge* currentEdge = veh->getRerouteOrigin();
-    MSNet::getInstance()->getRouterTT().compute(
+    veh->getInfluencer().getRouterTT().compute(
         currentEdge, destEdge, (const MSVehicle * const)veh, MSNet::getInstance()->getCurrentTimeStep(), newRoute);
     // replace the vehicle's route by the new one
     if (!veh->replaceRouteEdges(newRoute, "traci:changeTarget", onInit)) {
@@ -729,7 +773,7 @@ Vehicle::changeTarget(const std::string& vehicleID, const std::string& edgeID) {
     }
     // route again to ensure usage of via/stops
     try {
-        veh->reroute(MSNet::getInstance()->getCurrentTimeStep(), "traci:changeTarget", MSNet::getInstance()->getRouterTT(), onInit);
+        veh->reroute(MSNet::getInstance()->getCurrentTimeStep(), "traci:changeTarget", veh->getInfluencer().getRouterTT(), onInit);
     } catch (ProcessError& e) {
         throw TraCIException(e.what());
     }
@@ -1114,7 +1158,8 @@ Vehicle::setEffort(const std::string& vehicleID, const std::string& edgeID,
 void
 Vehicle::rerouteTraveltime(const std::string& vehicleID) {
     MSVehicle* veh = getVehicle(vehicleID);
-    veh->reroute(MSNet::getInstance()->getCurrentTimeStep(), "traci:rerouteTraveltime", MSNet::getInstance()->getRouterTT(), isOnInit(vehicleID));
+    veh->reroute(MSNet::getInstance()->getCurrentTimeStep(), "traci:rerouteTraveltime", 
+            veh->getInfluencer().getRouterTT(), isOnInit(vehicleID));
 }
 
 

@@ -258,6 +258,20 @@ struct TraCINextTLSData {
     char state;
 };
 
+struct TraCINextStopData {
+    /// @brief The lane to stop at
+    std::string lane;
+    /// @brief The stopping position end
+    double endPos;
+    /// @brief Id assigned to the stop
+    std::string stoppingPlaceID;
+    /// @brief Stop flags
+    int stopFlags;
+    /// @brief The stopping duration
+    SUMOTime duration;
+    /// @brief The time at which the vehicle may continue its journey
+    SUMOTime until;
+};
 
 struct TraCIBestLanesData {
     /// @brief The id of the lane

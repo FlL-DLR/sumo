@@ -16,6 +16,7 @@
 /// @author  Mario Krumnow
 /// @author  Jakob Erdmann
 /// @author  Robert Hilbrich
+/// @author  Lara Codeca
 /// @date    07.05.2009
 /// @version $Id$
 ///
@@ -73,7 +74,8 @@ TraCIServerAPI_Vehicle::processGet(TraCIServer& server, tcpip::Storage& inputSto
             && variable != VAR_CO2EMISSION && variable != VAR_COEMISSION
             && variable != VAR_HCEMISSION && variable != VAR_PMXEMISSION
             && variable != VAR_NOXEMISSION && variable != VAR_FUELCONSUMPTION && variable != VAR_NOISEEMISSION
-            && variable != VAR_ELECTRICITYCONSUMPTION && variable != VAR_PERSON_NUMBER && variable != VAR_LEADER
+            && variable != VAR_ELECTRICITYCONSUMPTION && variable != VAR_LEADER
+            && variable != VAR_PERSON_NUMBER && variable != VAR_PERSON_IDS
             && variable != VAR_EDGE_TRAVELTIME && variable != VAR_EDGE_EFFORT
             && variable != VAR_ROUTE_VALID && variable != VAR_EDGES
             && variable != VAR_SIGNALS && variable != VAR_DISTANCE
@@ -96,6 +98,7 @@ TraCIServerAPI_Vehicle::processGet(TraCIServer& server, tcpip::Storage& inputSto
             && variable != VAR_LANECHANGE_MODE
             && variable != VAR_ROUTING_MODE
             && variable != VAR_NEXT_TLS
+            && variable != VAR_NEXT_STOPS
             && variable != VAR_SLOPE
             && variable != VAR_HEIGHT
             && variable != VAR_LINE
@@ -230,6 +233,12 @@ TraCIServerAPI_Vehicle::processGet(TraCIServer& server, tcpip::Storage& inputSto
                 tempMsg.writeUnsignedByte(TYPE_INTEGER);
                 tempMsg.writeInt(libsumo::Vehicle::getPersonNumber(id));
                 break;
+            case VAR_PERSON_IDS: {
+                std::vector<std::string> ids = libsumo::Vehicle::getPersonIDList(id);
+                tempMsg.writeUnsignedByte(TYPE_STRINGLIST);
+                tempMsg.writeStringList(ids);
+                break;
+            }
             case VAR_LEADER: {
                 double dist = 0;
                 if (!server.readTypeCheckingDouble(inputStorage, dist)) {
@@ -358,6 +367,29 @@ TraCIServerAPI_Vehicle::processGet(TraCIServer& server, tcpip::Storage& inputSto
                     tempMsg.writeDouble(it->dist);
                     tempMsg.writeUnsignedByte(TYPE_BYTE);
                     tempMsg.writeByte(it->state);
+                }
+            }
+            break;
+            case VAR_NEXT_STOPS: {
+                std::vector<libsumo::TraCINextStopData> nextStops = libsumo::Vehicle::getNextStops(id);
+                tempMsg.writeUnsignedByte(TYPE_COMPOUND);
+                const int cnt = 1 + (int)nextStops.size() * 4;
+                tempMsg.writeInt(cnt);
+                tempMsg.writeUnsignedByte(TYPE_INTEGER);
+                tempMsg.writeInt((int)nextStops.size());
+                for (std::vector<libsumo::TraCINextStopData>::iterator it = nextStops.begin(); it != nextStops.end(); ++it) {
+                    tempMsg.writeUnsignedByte(TYPE_STRING);
+                    tempMsg.writeString(it->lane);
+                    tempMsg.writeUnsignedByte(TYPE_DOUBLE);
+                    tempMsg.writeDouble(it->endPos);
+                    tempMsg.writeUnsignedByte(TYPE_STRING);
+                    tempMsg.writeString(it->stoppingPlaceID);
+                    tempMsg.writeUnsignedByte(TYPE_INTEGER);
+                    tempMsg.writeInt(it->stopFlags);
+                    tempMsg.writeUnsignedByte(TYPE_INTEGER);
+                    tempMsg.writeInt((int)it->duration);
+                    tempMsg.writeUnsignedByte(TYPE_INTEGER);
+                    tempMsg.writeInt((int)it->until);
                 }
             }
             break;
@@ -495,6 +527,7 @@ TraCIServerAPI_Vehicle::processSet(TraCIServer& server, tcpip::Storage& inputSto
     // variable
     int variable = inputStorage.readUnsignedByte();
     if (variable != CMD_STOP && variable != CMD_CHANGELANE
+            && variable != CMD_REROUTE_TO_PARKING
             && variable != CMD_CHANGESUBLANE
             && variable != CMD_SLOWDOWN && variable != CMD_CHANGETARGET && variable != CMD_RESUME
             && variable != VAR_TYPE && variable != VAR_ROUTE_ID && variable != VAR_ROUTE
@@ -589,6 +622,22 @@ TraCIServerAPI_Vehicle::processSet(TraCIServer& server, tcpip::Storage& inputSto
                     }
                 }
                 libsumo::Vehicle::setStop(id, edgeID, pos, laneIndex, waitTime, stopFlags, startPos, until);
+            }
+            break;
+            case CMD_REROUTE_TO_PARKING: {
+                // read variables
+                if (inputStorage.readUnsignedByte() != TYPE_COMPOUND) {
+                    return server.writeErrorStatusCmd(CMD_SET_VEHICLE_VARIABLE, "Reroute to stop needs a compound object description.", outputStorage);
+                }
+                int compoundSize = inputStorage.readInt();
+                if (compoundSize != 1) {
+                    return server.writeErrorStatusCmd(CMD_SET_VEHICLE_VARIABLE, "Reroute to stop needs a compound object description of 1 item.", outputStorage);
+                }
+                std::string parkingAreaID;
+                if (!server.readTypeCheckingString(inputStorage, parkingAreaID)) {
+                    return server.writeErrorStatusCmd(CMD_SET_VEHICLE_VARIABLE, "The first reroute to stop parameter must be the parking area id given as a string.", outputStorage);
+                }
+                libsumo::Vehicle::rerouteParkingArea(id, parkingAreaID);
             }
             break;
             case CMD_RESUME: {
@@ -1026,7 +1075,7 @@ TraCIServerAPI_Vehicle::processSet(TraCIServer& server, tcpip::Storage& inputSto
                 if (!server.readTypeCheckingInt(inputStorage, personNumber)) {
                     return server.writeErrorStatusCmd(CMD_SET_VEHICLE_VARIABLE, "14th parameter (person number) requires an int.", outputStorage);
                 }
-                libsumo::Vehicle::add(id, routeID, vTypeID, depart, departLane, departPos, departSpeed, arrivalLane, arrivalPos, arrivalSpeed, 
+                libsumo::Vehicle::add(id, routeID, vTypeID, depart, departLane, departPos, departSpeed, arrivalLane, arrivalPos, arrivalSpeed,
                         fromTaz, toTaz, line, personCapacity, personNumber);
             }
             break;

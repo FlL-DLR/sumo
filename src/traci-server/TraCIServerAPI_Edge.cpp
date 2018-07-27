@@ -289,7 +289,7 @@ TraCIServerAPI_Edge::processSet(TraCIServer& server, tcpip::Storage& inputStorag
                                                           "The third variable must be the value given as double",
                                                           outputStorage);
                     }
-                    libsumo::Edge::adaptTraveltime(id, begTime, endTime, value);
+                    libsumo::Edge::adaptTraveltime(id, value, begTime, endTime);
                 } else if (parameterCount == 1) {
                     // unbound
                     double value = 0;
@@ -297,7 +297,7 @@ TraCIServerAPI_Edge::processSet(TraCIServer& server, tcpip::Storage& inputStorag
                         return server.writeErrorStatusCmd(CMD_SET_EDGE_VARIABLE,
                                                           "The variable must be the value given as double", outputStorage);
                     }
-                    libsumo::Edge::adaptTraveltime(id, 0, double(SUMOTime_MAX), value);
+                    libsumo::Edge::adaptTraveltime(id, value, 0, double(SUMOTime_MAX));
                 } else {
                     return server.writeErrorStatusCmd(CMD_SET_EDGE_VARIABLE,
                                                       "Setting travel time requires either begin time, end time, and value, or only value as parameter.",
@@ -332,7 +332,7 @@ TraCIServerAPI_Edge::processSet(TraCIServer& server, tcpip::Storage& inputStorag
                                                           "The third variable must be the value given as double",
                                                           outputStorage);
                     }
-                    libsumo::Edge::setEffort(id, begTime, endTime, value);
+                    libsumo::Edge::setEffort(id, value, begTime, endTime);
                 } else if (parameterCount == 1) {
                     // unbound
                     double value = 0;
@@ -340,7 +340,7 @@ TraCIServerAPI_Edge::processSet(TraCIServer& server, tcpip::Storage& inputStorag
                         return server.writeErrorStatusCmd(CMD_SET_EDGE_VARIABLE,
                                                           "The variable must be the value given as double", outputStorage);
                     }
-                    libsumo::Edge::setEffort(id, 0., double(SUMOTime_MAX), value);
+                    libsumo::Edge::setEffort(id, value, 0., double(SUMOTime_MAX));
                 } else {
                     return server.writeErrorStatusCmd(CMD_SET_EDGE_VARIABLE,
                                                       "Setting effort requires either begin time, end time, and value, or only value as parameter.",
