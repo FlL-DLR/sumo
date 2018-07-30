@@ -20,6 +20,9 @@ inspect_selection_geo
 # load shape
 load
 
+# load polys with generic parameters
+load_genericparameters
+
 # move shape (blocked and undblocked)
 move
 

@@ -40,6 +40,7 @@
 #include "NBTypeCont.h"
 #include <utils/geom/GeomHelper.h>
 #include <utils/common/MsgHandler.h>
+#include <utils/common/TplConvert.h>
 #include <utils/common/StringUtils.h>
 #include <utils/common/ToString.h>
 #include <utils/common/UtilExceptions.h>
@@ -332,7 +333,7 @@ NBEdge::NBEdge(const std::string& id, NBNode* from, NBNode* to, NBEdge* tpl, con
         setSpeed(i, tpl->getLaneSpeed(tplIndex));
         setPermissions(tpl->getPermissions(tplIndex), i);
         setLaneWidth(i, tpl->myLanes[tplIndex].width);
-        myLanes[i].updateParameter(tpl->myLanes[tplIndex].getMap());;
+        myLanes[i].updateParameter(tpl->myLanes[tplIndex].getParametersMap());
         if (to == tpl->myTo) {
             setEndOffset(i, tpl->myLanes[tplIndex].endOffset);
             setStopOffsets(i, tpl->myLanes[tplIndex].stopOffsets);
@@ -645,11 +646,12 @@ NBEdge::resetNodeBorder(const NBNode* node) {
 
 
 bool 
-NBEdge::isBidiRail() {
+NBEdge::isBidiRail() const {
     return (isRailway(getPermissions()) 
             && myLaneSpreadFunction == LANESPREAD_CENTER 
             && myPossibleTurnDestination != 0 
             && myPossibleTurnDestination->getLaneSpreadFunction() == LANESPREAD_CENTER
+            && isRailway(myPossibleTurnDestination->getPermissions())
             && myPossibleTurnDestination->getGeometry().reverse() == getGeometry());
 }
 
@@ -1969,7 +1971,7 @@ NBEdge::hasCustomLaneShape() const {
 bool
 NBEdge::hasLaneParams() const {
     for (std::vector<Lane>::const_iterator i = myLanes.begin(); i != myLanes.end(); ++i) {
-        if (i->getMap().size() > 0) {
+        if (i->getParametersMap().size() > 0) {
             return true;
         }
     }
@@ -2808,6 +2810,11 @@ NBEdge::expandableBy(NBEdge* possContinuation, std::string& reason) const {
             return false;
         }
     }
+    // conserve bidi-rails
+    if (isBidiRail() != possContinuation->isBidiRail()) {
+        reason = "bidi-rail";
+        return false;
+    }
 
     // the vehicle class constraints, too
     /*!!!
@@ -2946,7 +2953,7 @@ NBEdge::addLane(int index, bool recomputeShape, bool recomputeConnections, bool 
         myLanes[index].preferred = myLanes[templateIndex].preferred;
         myLanes[index].endOffset = myLanes[templateIndex].endOffset;
         myLanes[index].width = myLanes[templateIndex].width;
-        myLanes[index].updateParameter(myLanes[templateIndex].getMap());
+        myLanes[index].updateParameter(myLanes[templateIndex].getParametersMap());
     }
     const EdgeVector& incs = myFrom->getIncomingEdges();
     if (recomputeShape) {
@@ -3526,6 +3533,12 @@ NBEdge::debugPrintConnections(bool outgoing, bool incoming) const {
             }
         }
     }
+}
+
+
+int
+NBEdge::getLaneIndexFromLaneID(const std::string laneID) {
+    return TplConvert::_2int(laneID.substr(laneID.rfind("_") + 1).c_str());
 }
 
 /****************************************************************************/
