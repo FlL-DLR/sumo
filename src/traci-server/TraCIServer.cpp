@@ -125,9 +125,26 @@ TraCIServer::wrapInt(const std::string& /* objID */, const int /* variable */, c
 
 
 bool
-TraCIServer::wrapStringList(const std::string& /* objID */, const int /* variable */, const std::vector<std::string> value) {
+TraCIServer::wrapString(const std::string& /* objID */, const int /* variable */, const std::string& value) {
+    myWrapperStorage.writeUnsignedByte(TYPE_STRING);
+    myWrapperStorage.writeString(value);
+    return true;
+}
+
+
+bool
+TraCIServer::wrapStringList(const std::string& /* objID */, const int /* variable */, const std::vector<std::string>& value) {
     myWrapperStorage.writeUnsignedByte(TYPE_STRINGLIST);
     myWrapperStorage.writeStringList(value);
+    return true;
+}
+
+
+bool
+TraCIServer::wrapPosition(const std::string& objID, const int variable, const libsumo::TraCIPosition& value) {
+    myWrapperStorage.writeUnsignedByte(POSITION_2D);
+    myWrapperStorage.writeDouble(value.x);
+    myWrapperStorage.writeDouble(value.y);
     return true;
 }
 

@@ -51,6 +51,7 @@ public:
      */
     static void analyzeTopology(NBNetBuilder& nb);
     static void repairTopology(NBNetBuilder& nb);
+    static void makeAllBidi(NBNetBuilder& nb);
 
 
 private:
@@ -63,9 +64,12 @@ private:
     static bool isStraight(const NBNode* node, NBEdge* e1, NBEdge* e2);
     static bool hasStraightPair(const NBNode* node, const EdgeVector& edges, const EdgeVector& edges2); 
     static bool allBroken(const NBNode* node, NBEdge* candOut, const EdgeVector& in, const EdgeVector& out);
-    static bool allSharp(const NBNode* node, const EdgeVector& in, const EdgeVector& out);
+    static bool allSharp(const NBNode* node, const EdgeVector& in, const EdgeVector& out, bool countBidiAsSharp=false);
     static bool allBidi(const EdgeVector& edges);
     static NBEdge* isBidiSwitch(const NBNode* n);
+
+    /// @brief add bidi-edge for the given edge
+    static NBEdge* addBidiEdge(NBNetBuilder& nb, NBEdge* edge, bool update=true);
 
     /// @brief add further bidi-edges near existing bidi-edges
     static int extendBidiEdges(NBNetBuilder& nb);
